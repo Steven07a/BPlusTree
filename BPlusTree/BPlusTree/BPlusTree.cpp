@@ -4,8 +4,7 @@
  * Purpose: This is a binary tree which will can have multiple children
  *              it is still kept balanced and kept inorder like BTree but with additional functionality
  *
- * Notes: need to work on fixing the pointers as sometimes they point to random things 
- * also need to see if we can break the delete function more
+ * Notes: need to fix the pointers for next and previous so that subset[0] children point to subset[1] child
  */
 
 #include <iostream>
@@ -21,6 +20,8 @@ bool test_bplustree_auto(int how_many, bool report = true);
 int Random(int lo, int hi);
 void copy_array(int* destPtr, int* srcPtr, int size);
 void test_bplustree_insert_random(int howMany);
+void test_insert_and_delete_random(int howMany, bool print_debug = false);
+
 void shuffle(int a[], unsigned int  size);
 
 int main()
@@ -30,6 +31,7 @@ int main()
 
     //------------------------------------------
     srand(time(0));
+    cout << time(0) << endl << endl;
     //------------------------------------------
 
 
@@ -38,6 +40,7 @@ int main()
 
 //    test_bplustree_remove();
     test_bplustree_interactive();
+    //test_insert_and_delete_random(10000);
 //    test_bplustree_big_three();
 //    test_bplustree_auto(1000, 100, false);
 
@@ -280,6 +283,50 @@ void test_bplustree_insert_random(int howMany) {
         cout << " INSERTION TEST PASSED " << "FOUND " << found << " ITEMS" << endl << endl;
     } else {
         cout << " INSERTION TEST FAILED " << endl << endl;
+    }
+}
+
+void test_insert_and_delete_random(int howMany, bool print_debug) {
+    cout << "*********************************************************" << endl;
+    cout << " INSERT AND DELETEING RANDOM TEST: " << howMany << " ITEMS" << endl;
+    cout << "*********************************************************" << endl;
+    int* arr = new int[howMany];
+    int notFound = 0;
+    string temp = "";
+    for (int i = 0; i < howMany; i++) {
+        arr[i] = i + 1;
+    }
+
+    shuffle(arr, howMany);
+
+    BPlusTree<int> bt;
+
+    for (int i = 0; i < howMany; i++) {
+        bt.insert(arr[i]);
+    }
+    if (print_debug) {
+        bt.print_tree();
+        cout << "\n\n\n";
+    }
+    for (int i = 0; i < howMany; i++) {
+        bt.remove(arr[i]);
+        if (print_debug) {
+            cout << "removing: " << arr[i] << "\n\n\n";
+            bt.print_tree();
+        }
+        if (!bt.contains(arr[i])) {
+            notFound++;
+        } else {
+            cout << arr[i] << " " << i << " BROKE HERE!!!!!!\n\n";
+        }
+    }
+    delete[]arr;
+    arr = NULL;
+
+    if (notFound == howMany) {
+        cout << " INSERTION AND DELETING TEST PASSED " << "DELETED " << notFound << " ITEMS" << endl << endl;
+    } else {
+        cout << " INSERTION AND DELETING TEST FAILED " << endl << endl;
     }
 }
 

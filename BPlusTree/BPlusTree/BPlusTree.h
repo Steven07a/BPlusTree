@@ -183,7 +183,7 @@ T* BPlusTree<T>::find(const T& entry) const {
     int i = first_ge(data, data_count, entry);
     bool found = false;
 
-    if (data[i] == entry && is_leaf()) {
+    if (data[i] == entry && is_leaf() && i < data_count) {
         found = true;
     }
 
@@ -236,9 +236,9 @@ void BPlusTree<T>::fix_excess(int i) {
             if (i == 0) {
                 subset[i]->previous = NULL;
                 subset[i]->next = subset[i + 1]->data;
-            } else if (i <= child_count - 1) {
+            } else if (i < child_count - 1) {
                 subset[i]->previous = subset[i - 1]->data;
-                subset[i]->next = subset[i]->data;
+                subset[i]->next = subset[i + 1]->data;
             } else {
                 subset[i]->previous = subset[i-1]->data;
                 subset[i]->next = NULL;
@@ -384,14 +384,14 @@ void BPlusTree<T>::copy_tree(const BPlusTree<T>& other) {
     if (subset[0] != NULL && subset[0]->is_leaf()) {
         for (int i = 0; i < child_count; i++) {
             if (i == 0) {
-                this->previous = NULL;
-                this->next = subset[i + 1]->data;
+                this->subset[i]->previous = NULL;
+                this->subset[i]->next = subset[i + 1]->data;
             } else if (i < child_count - 1) {
-                this->previous = subset[i - 1]->data;
-                this->next = subset[i + 1]->data;
+                this->subset[i]->previous = subset[i - 1]->data;
+                this->subset[i]->next = subset[i + 1]->data;
             } else {
-                this->previous = subset[i - 1]->data;
-                this->next = NULL;
+                this->subset[i]->previous = subset[i - 1]->data;
+                this->subset[i]->next = NULL;
             }
         }
     }
@@ -445,15 +445,16 @@ bool BPlusTree<T>::loose_remove(const T& entry) {
         if (data[i] == entry && i < data_count) {
             deleted = subset[i + 1]->loose_remove(entry);
             T temp;
-            if (subset[i + 1]->data_count > 0) {
+            if (subset[i + 1] != NULL) {
                 subset[i + 1]->get_smallest(temp);
                 data[i] = temp;
             }
-            if (!is_leaf() && subset[i+1] != NULL) {
-                if (subset[i+1]->data_count < MINIMUM) {
-                    fix_shortage(i+1);
+            if (!is_leaf() && subset[i + 1] != NULL) {
+                if (subset[i + 1]->data_count < MINIMUM) {
+                    fix_shortage(i + 1);
                 }
             }
+            
         } else {
             deleted = subset[i]->loose_remove(entry);
         }
@@ -515,6 +516,10 @@ void BPlusTree<T>::merge_with_next_subset(int i) {
         delete_item(data, i, data_count, temp);
         data_count++;
         ordered_insert(subset[i]->data, subset[i]->data_count, temp);
+        /*if (subset[i]->subset[i + 2] != NULL && subset[i]->data[data_count - 1] != subset[i]->subset[i + 2]->data[0]) {
+            subset[i]->data[data_count - 1] = subset[i]->subset[i + 2]->data[0];
+        }*/
+    
     }
     //this can only happen in a case where we merge and subset i+2 has an
     //item and subset i+1 does not
@@ -553,9 +558,9 @@ void BPlusTree<T>::fix_shortage(int i) {
         } else {
             T item;
             merge_with_next_subset(i);
-            if (subset[i]->is_leaf()) {
-                delete_item(data, i, data_count, item);
-            }
+            //if (subset[i]->is_leaf()) {
+            delete_item(data, i, data_count, item);
+            //}
            /* if (subset[i + 2] != NULL) {
                 merge_with_next_subset(i + 1);
             }*/
@@ -574,9 +579,6 @@ void BPlusTree<T>::fix_shortage(int i) {
             T item;
             merge_with_next_subset(i-1);
             delete_item(data, i - 1, data_count, item);
-            if (subset[i+1] != NULL) {
-                merge_with_next_subset(i);
-            }
         }
         //takes care of shortage for the end
     } else {
@@ -588,7 +590,7 @@ void BPlusTree<T>::fix_shortage(int i) {
             T item;
             merge_with_next_subset(i - 1);
             delete_item(data, i - 1, data_count, item);
-            /*if (subset[i+1] != NULL) {
+            /*if (subset[i-1] != NULL && ) {
                 merge_with_next_subset(i);
             }*/
         }
@@ -714,7 +716,6 @@ void BPlusTree<T>::rotate_left(int i) {
             btp
         );
     }
-
 }
 
 #endif // !BPlusTree_H_
