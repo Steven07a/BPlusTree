@@ -23,14 +23,21 @@ public:
         }
 
         Iterator operator++(int un_used) {
+            key_ptr++;
+            if (key_ptr == it->data_count) {
+                it = it->next;
+                key_ptr = 0;
+            }
+            return *this;
         }
 
         Iterator operator++() {
             key_ptr++;
-            if (key_ptr == it->data_count - 1) {
+            if (key_ptr == it->data_count) {
                 it = it->next;
                 key_ptr = 0;
             }
+            return *this;
         }
         friend bool operator ==(const Iterator& lhs, const Iterator& rhs) {
             if (&lhs.it == &rhs.it && lhs.key_ptr == rhs.key_ptr) {
@@ -41,7 +48,7 @@ public:
         }
 
         friend bool operator !=(const Iterator& lhs, const Iterator& rhs) {
-            if (&lhs.it != &rhs.it) {
+            if (lhs.it != rhs.it) {
                 return true;
             } else {
                 return false;
@@ -71,7 +78,6 @@ public:
             subset[i] = NULL;
         }
         next = NULL;
-        previous = NULL;
     }
     //big three:
     BPlusTree(const BPlusTree<T>& other);
@@ -79,7 +85,6 @@ public:
         clear_tree();
     }
     BPlusTree<T>& operator =(const BPlusTree<T>& RHS) {
-        //RHS.copy_tree(*this);
         this->copy_tree(RHS);
         return *this;
     }
@@ -97,16 +102,14 @@ public:
     
     Iterator find_Iterator(const T& entry) {
         Iterator temp = begin();
-        while (true) {
-            if (temp == NULL) {
-                return temp;
-            }
+        while (temp != end()) {
             if (*temp == entry) {
                 return temp;
             } else {
                 temp++;
             }
         }
+        return NULL;
     }
 
     int size() const;                           //count the number of elements in the tree
@@ -122,34 +125,38 @@ public:
         if (this == NULL) {
             return NULL;
         }
-        if (is_leaf() && this->previous == NULL) {
+        if (is_leaf()) {
             Iterator e;
             e = this;
+            for (int i = 0; i < this->data_count; i++) {
+                e++;
+            }
             return e;
         } else {
-            return this->subset[0]->end();
+            return this->subset[0]->begin();
         }
     }
     
     Iterator end() {
-        if (this == NULL) {
+        return Iterator(NULL);
+        /*if (this == NULL) {
             return NULL;
         }
         if (is_leaf() && this->next == NULL) {
             Iterator e;
             e = this;
+            
             return e;
         } else {
             return this->subset[child_count - 1]->end();
-        }
+        }*/
     }
 
 
 private:
     static const int MINIMUM = 1;
     static const int MAXIMUM = 2 * MINIMUM;
-    T* next;
-    T* previous;
+    BPlusTree<T>* next;
 
     bool dups_ok;                                   //true if duplicate keys may be inserted
     int data_count;                                 //number of data elements
@@ -175,7 +182,9 @@ private:
     void get_smallest(T& entry);                    //will get the smallest item within that tree
     void rotate_left(int i);
     void rotate_right(int i);
-
+    BPlusTree<T>& get_biggest_BPlusTree();
+    BPlusTree<T>& get_smallest_BPlusTree();
+    void fix_next_pointers();
 };
 
 template <typename T>
@@ -208,6 +217,7 @@ void BPlusTree<T>::fix_excess(int i) {
     T entry;
     detach_item(subset[i]->data, subset[i]->data_count, entry);
     subset[i + 1]->insert(entry);
+    
     // checks if our child is null if it is then set it
     if (subset[i]->subset[i] != NULL) {
         if (subset[i + 1]->subset[i + 1] == NULL) {
@@ -217,7 +227,7 @@ void BPlusTree<T>::fix_excess(int i) {
         the part in parenthesies is what gets split
         ex:                                           20
                     5   20  40            ->       5       40
-                4  10  30   50 60                4   10  (30   50 60)
+                  4  10  30  50 60              4   10  (30   50 60)
         */
         split(
             subset[i]->subset,
@@ -225,6 +235,13 @@ void BPlusTree<T>::fix_excess(int i) {
             subset[i + 1]->subset,
             subset[i + 1]->child_count
         );
+
+        if (subset[i]->subset[0]->is_leaf()) {
+            subset[i]->subset[subset[i]->child_count - 1]->next =
+                subset[i + 1]->subset[0];
+            //subset[i+1]
+        }
+
     }
     
     detach_item(subset[i]->data, subset[i]->data_count, entry);
@@ -234,13 +251,10 @@ void BPlusTree<T>::fix_excess(int i) {
     if (subset[i]->is_leaf()) {
         for (int i = 0; i < child_count; i++) {
             if (i == 0) {
-                subset[i]->previous = NULL;
-                subset[i]->next = subset[i + 1]->data;
-            } else if (i < child_count - 1) {
-                subset[i]->previous = subset[i - 1]->data;
-                subset[i]->next = subset[i + 1]->data;
+                subset[i]->next = subset[i + 1];
+            } else if (i < child_count) {
+                subset[i]->next = subset[i + 1];
             } else {
-                subset[i]->previous = subset[i-1]->data;
                 subset[i]->next = NULL;
             }
         }
@@ -248,7 +262,6 @@ void BPlusTree<T>::fix_excess(int i) {
         //if he is not a child then we clear up his next and previous pointers as he 
         //may have been a child at some point
         for (int i = 0; i < child_count; i++) {
-            subset[i]->previous = NULL;
             subset[i]->next = NULL;
         }
     }
@@ -349,8 +362,8 @@ bool BPlusTree<T>::insert(const T& entry) {
             inserted = false;
         }
     }
-
-
+    if(!this->is_leaf())
+    this->fix_next_pointers();
     //this is where we check if the root of the tree is fat if it is then fix it
     if (data_count > MAXIMUM) {
         int tempNumofDataElements = numOfDataElements;
@@ -360,6 +373,7 @@ bool BPlusTree<T>::insert(const T& entry) {
         temp->child_count++;
         temp->fix_excess(0);
         this->copy_tree(*temp);
+        this->fix_next_pointers();
         numOfDataElements = tempNumofDataElements;
     }
     if (inserted) {
@@ -381,25 +395,99 @@ void BPlusTree<T>::copy_tree(const BPlusTree<T>& other) {
             subset[i]->copy_tree(*other.subset[i]);
         }
     }
+    //this copies the pointers we put it here as this is when the children are 
+    //already made 
     if (subset[0] != NULL && subset[0]->is_leaf()) {
         for (int i = 0; i < child_count; i++) {
             if (i == 0) {
-                this->subset[i]->previous = NULL;
-                this->subset[i]->next = subset[i + 1]->data;
-            } else if (i < child_count - 1) {
-                this->subset[i]->previous = subset[i - 1]->data;
-                this->subset[i]->next = subset[i + 1]->data;
+                this->subset[i]->next = subset[i + 1];
+            } else if (i < child_count) {
+                this->subset[i]->next = subset[i + 1];
             } else {
-                this->subset[i]->previous = subset[i - 1]->data;
                 this->subset[i]->next = NULL;
+            }
+        }
+    }
+    if (!this->is_leaf()) {
+        if (subset[0]->child_count > 1 && subset[0]->subset[0]->is_leaf() && subset[0] != NULL) {
+            for (int i = 0; i < child_count-1; i++) {
+                subset[i]->subset[subset[i]->child_count - 1]->next
+                    = subset[i + 1]->subset[0];
+            }
+        }
+    }
+    
+}
+
+template <typename T>
+void BPlusTree<T>::fix_next_pointers() {
+    if (this->subset[0]->is_leaf()) {
+        for (int i = 0; i < child_count; i++) {
+            if (i == 0) {
+                this->subset[i]->next = subset[i + 1];
+            } else if (i < child_count) {
+                this->subset[i]->next = subset[i + 1];
+            } else {
+                this->subset[i]->next = NULL;
+            }
+        }
+    } else {
+        for (int i = 0; i < child_count; i++) {
+            this->subset[i]->fix_next_pointers();
+            if (!this->subset[0]->is_leaf()) {
+                if (i == 0) {
+                    BPlusTree<T>* LHS;
+                    LHS = &this->subset[i]->get_biggest_BPlusTree();
+                    BPlusTree<T>* RHS;
+                    RHS = &this->subset[i+1]->get_smallest_BPlusTree();
+                    LHS->next = RHS;
+                } else if (i > 0) {
+                    BPlusTree<T>* LHS; 
+                    LHS = &this->subset[i - 1]->get_biggest_BPlusTree();
+                    BPlusTree<T>* RHS; 
+                    RHS = &this->subset[i]->get_smallest_BPlusTree();
+                    LHS->next = RHS;
+                }
             }
         }
     }
 }
 
 template<typename T>
+BPlusTree<T>& BPlusTree<T>::get_biggest_BPlusTree() {
+    if (this->is_leaf()) {
+        return *this;
+    } else {
+        return this->subset[child_count - 1]->get_biggest_BPlusTree();
+    }
+}
+
+template <typename T>
+BPlusTree<T>& BPlusTree<T>::get_smallest_BPlusTree() {
+    if (this->is_leaf()) {
+        return *this;
+    } else {
+        return this->subset[0]->get_smallest_BPlusTree();
+    }
+}
+
+template<typename T>
 BPlusTree<T>::BPlusTree(const BPlusTree<T>& other) {
-    this = other;
+    dups_ok = false;
+    child_count = 0;
+    data_count = 0;
+    numOfDataElements = 0;
+    for (int i = 0; i < MAXIMUM + 1; i++) {
+        data[i] = T();
+    }
+
+    for (int i = 0; i < MAXIMUM + 2; i++) {
+        subset[i] = NULL;
+    }
+    next = NULL;
+    if (&other != NULL) {
+        this->copy_tree(other);
+    }
 }
 
 template<typename T>
@@ -440,7 +528,7 @@ bool BPlusTree<T>::loose_remove(const T& entry) {
             deleted = true;
         }
         //check if our item is in this current root if it is then delete it and replace it with
-        //its left childs largest item
+        //its right childs smallest item
     } else {
         if (data[i] == entry && i < data_count) {
             deleted = subset[i + 1]->loose_remove(entry);
@@ -516,16 +604,14 @@ void BPlusTree<T>::merge_with_next_subset(int i) {
         delete_item(data, i, data_count, temp);
         data_count++;
         ordered_insert(subset[i]->data, subset[i]->data_count, temp);
-        /*if (subset[i]->subset[i + 2] != NULL && subset[i]->data[data_count - 1] != subset[i]->subset[i + 2]->data[0]) {
-            subset[i]->data[data_count - 1] = subset[i]->subset[i + 2]->data[0];
-        }*/
-    
     }
     //this can only happen in a case where we merge and subset i+2 has an
     //item and subset i+1 does not
     if (subset[i + 1] != NULL && subset[i + 2] != NULL) {
         if (subset[i + 1]->data_count == 0 && subset[i + 2]->data_count > 0) {
             swaps(subset[i + 1], subset[i + 2]);
+            subset[i]->next = subset[i + 1];
+            subset[i + 1]->next = NULL;
         }
     }
 }
@@ -533,18 +619,11 @@ void BPlusTree<T>::merge_with_next_subset(int i) {
 template <typename T>
 void BPlusTree<T>::transfer_right(int i) {
     T item;
-    ////takes the largest data out of subset[i] then inserts it into roots data
-    ////we then take the next largest item out of data and move that to subset[i+1]
+    //takes the largest data out of subset[i] then inserts it into roots data
+    //we then take the next largest item out of data and move that to subset[i+1]
     detach_item(subset[i]->data, subset[i]->data_count, item);
     ordered_insert(subset[i + 1]->data, subset[i + 1]->data_count, item);
     data[i] = item;
-
-    /*BPlusTree<T>* btp;
-    moves over any of the subsets that subset[i] may have had
-    if (subset[i]->child_count > 0 && !subset[i]->is_leaf()) {
-        detach_item(subset[i]->subset, subset[i]->child_count, btp);
-        insert_item(subset[i + 1]->subset, 0, subset[i + 1]->child_count, btp);
-    }*/
 }
 
 template <typename T>
@@ -558,12 +637,7 @@ void BPlusTree<T>::fix_shortage(int i) {
         } else {
             T item;
             merge_with_next_subset(i);
-            //if (subset[i]->is_leaf()) {
             delete_item(data, i, data_count, item);
-            //}
-           /* if (subset[i + 2] != NULL) {
-                merge_with_next_subset(i + 1);
-            }*/
         }
         //takes care of shortage for the middle
     } else if (i < child_count - 1) {
@@ -590,9 +664,6 @@ void BPlusTree<T>::fix_shortage(int i) {
             T item;
             merge_with_next_subset(i - 1);
             delete_item(data, i - 1, data_count, item);
-            /*if (subset[i-1] != NULL && ) {
-                merge_with_next_subset(i);
-            }*/
         }
     }
 
