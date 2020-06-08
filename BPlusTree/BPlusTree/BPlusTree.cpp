@@ -4,7 +4,7 @@
  * Purpose: This is a binary tree which will can have multiple children
  *              it is still kept balanced and kept inorder like BTree but with additional functionality
  *
- * Notes: need to fix the pointers for next and previous so that subset[0] children point to subset[1] child
+ * Notes: ran out of time had to implement a cheap way of fixing the next pointers inorder to work on SQL class
  */
 
 #include <iostream>
@@ -30,7 +30,7 @@ int main()
     //cout << endl << endl << endl << "===============================" << endl << endl << endl << endl;
 
     //------------------------------------------
-    srand(1590447905);
+    srand(time(0));
     //cout << time(0) << endl << endl;
     //------------------------------------------
 
@@ -40,7 +40,7 @@ int main()
 
 //    test_bplustree_remove();
     //test_bplustree_interactive();
-    //test_insert_and_delete_random(10000);
+    test_insert_and_delete_random(10000);
 
     test_iterator();
     cout << endl << "===============================" << endl;

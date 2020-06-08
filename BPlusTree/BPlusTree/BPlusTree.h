@@ -21,7 +21,7 @@ public:
             assert(key_ptr < it->data_count);
             return it->data[key_ptr];
         }
-
+        //may need to overload comparison operators for Iterators.
         Iterator operator++(int un_used) {
             key_ptr++;
             if (key_ptr == it->data_count) {
@@ -109,7 +109,7 @@ public:
                 temp++;
             }
         }
-        return NULL;
+        return Iterator(NULL);
     }
 
     int size() const;                           //count the number of elements in the tree
@@ -128,9 +128,6 @@ public:
         if (is_leaf()) {
             Iterator e;
             e = this;
-            for (int i = 0; i < this->data_count; i++) {
-                e++;
-            }
             return e;
         } else {
             return this->subset[0]->begin();
@@ -139,17 +136,6 @@ public:
     
     Iterator end() {
         return Iterator(NULL);
-        /*if (this == NULL) {
-            return NULL;
-        }
-        if (is_leaf() && this->next == NULL) {
-            Iterator e;
-            e = this;
-            
-            return e;
-        } else {
-            return this->subset[child_count - 1]->end();
-        }*/
     }
 
 
@@ -184,7 +170,8 @@ private:
     void rotate_right(int i);
     BPlusTree<T>& get_biggest_BPlusTree();
     BPlusTree<T>& get_smallest_BPlusTree();
-    void fix_next_pointers();
+    void fix_next_pointers();                       //function which goes through the entire tree fixing 
+                                                    //all the next pointers
 };
 
 template <typename T>
@@ -241,13 +228,11 @@ void BPlusTree<T>::fix_excess(int i) {
                 subset[i + 1]->subset[0];
             //subset[i+1]
         }
-
     }
     
     detach_item(subset[i]->data, subset[i]->data_count, entry);
     ordered_insert(data, data_count, entry);
-    //checks if the thing under us is a child if it is then we need to set his next and 
-    //previous pointers
+    //checks if the thing under us is a child if it is then we need to set his next pointers
     if (subset[i]->is_leaf()) {
         for (int i = 0; i < child_count; i++) {
             if (i == 0) {
@@ -258,13 +243,7 @@ void BPlusTree<T>::fix_excess(int i) {
                 subset[i]->next = NULL;
             }
         }
-    } else {
-        //if he is not a child then we clear up his next and previous pointers as he 
-        //may have been a child at some point
-        for (int i = 0; i < child_count; i++) {
-            subset[i]->next = NULL;
-        }
-    }
+    } 
 
     if (subset[i + 1]->is_leaf()) {
         ordered_insert(subset[i+1]->data, subset[i+1]->data_count, entry);
@@ -334,18 +313,23 @@ void BPlusTree<T>::clear_tree() {
     //clears the tree by clearing its children first then clearing up
     if (this != NULL) {
         for (int i = data_count - 1; i >= 0; i--) {
-            data[i] = T();
+            if (&data[i] != NULL) {
+                data[i] = T();
+            }
         }
         for (int i = child_count - 1; i >= 0; i--) {
-            subset[i]->clear_tree();
-            delete subset[i];
-            subset[i] = NULL;
+            if (child_count >= 0) {
+                subset[i]->clear_tree();
+                delete subset[i];
+                subset[i] = NULL;
+            }
         }
         data_count = 0;
         child_count = 0;
         subset[0]->clear_tree();
-
+        numOfDataElements = 0;
     }
+    
 }
 
 template <typename T>
@@ -362,8 +346,11 @@ bool BPlusTree<T>::insert(const T& entry) {
             inserted = false;
         }
     }
-    if(!this->is_leaf())
-    this->fix_next_pointers();
+
+    if (!this->is_leaf()) {
+        this->fix_next_pointers();
+    }
+
     //this is where we check if the root of the tree is fat if it is then fix it
     if (data_count > MAXIMUM) {
         int tempNumofDataElements = numOfDataElements;
@@ -624,6 +611,13 @@ void BPlusTree<T>::transfer_right(int i) {
     detach_item(subset[i]->data, subset[i]->data_count, item);
     ordered_insert(subset[i + 1]->data, subset[i + 1]->data_count, item);
     data[i] = item;
+
+    if (subset[1] != NULL) {
+        data[0] = subset[1]->data[0];
+    }
+    if (subset[2] != NULL) {
+        data[1] = subset[2]->data[0];
+    }
 }
 
 template <typename T>
@@ -673,31 +667,9 @@ template <typename T>
 void BPlusTree<T>::transfer_left(int i) {
     int num = 0;
     T item;
-    ////takes the smallest data out of subset[i] then inserts it into roots data
-    ////we then take the next smalled item out of data and move that to subset[i-1]
-    //delete_item(subset[i]->data, num, subset[i]->data_count, item);
-    //ordered_insert(data, data_count, item);
-    //delete_item(data, i - 1, data_count, item);
-    //ordered_insert(subset[i - 1]->data, subset[i - 1]->data_count, item);
-
 
     delete_item(subset[i]->data, num, subset[i]->data_count, item);
     ordered_insert(subset[i-1]->data, subset[i-1]->data_count, item);
-
-    //BPlusTree<T>* btp;
-    ////moves over any of the subsets that subset[i] may have had
-    //if (subset[i]->child_count > 0 && !subset[i]->is_leaf()) {
-    //    delete_item(subset[i]->subset, num, subset[i]->child_count, btp);
-    //    if (subset[i - 1] == NULL) {
-    //        subset[i - 1] = new BPlusTree<T>;
-    //    }
-    //    insert_item(
-    //        subset[i - 1]->subset,
-    //        subset[i - 1]->child_count,
-    //        subset[i - 1]->child_count,
-    //        btp
-    //    );
-    //}
 
     if (subset[1] != NULL) {
         data[0] = subset[1]->data[0];
